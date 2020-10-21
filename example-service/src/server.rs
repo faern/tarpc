@@ -72,5 +72,8 @@ async fn main() -> io::Result<()> {
     server.await;
     println!("server.await returned. It should only return once `stream` has been fully processed?");
 
+    // This hack makes the server respond correctly before terminating
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
     Ok(())
 }
