@@ -65,15 +65,13 @@ async fn main() -> io::Result<()> {
     let framed_stream = Framed::new(stream, LengthDelimitedCodec::default());
     let server_transport = tarpc::serde_transport::new(framed_stream, Json::default());
 
-    let server = server::new(server::Config::default())
+    let channel = server::new(server::Config::default())
         .incoming(stream::once(future::ready(server_transport)))
-        .respond_with(HelloServer(client_addr).serve());
+        .next()
+        .await
+        .expect("This server should have exactly one channel in it");
 
-    server.await;
-    println!("server.await returned. It should only return once `stream` has been fully processed?");
-
-    // This hack makes the server respond correctly before terminating
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    channel.respond_with(HelloServer(client_addr).serve()).execute().await;
 
     Ok(())
 }
