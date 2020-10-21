@@ -59,19 +59,18 @@ async fn main() -> io::Result<()> {
 
     let server_addr = SocketAddr::new(IpAddr::from([0, 0, 0, 0]), port);
 
-    let listener = TcpListener::bind(server_addr).await?
-        // Ignore accept errors.
-        .filter_map(|r| future::ready(r.ok()))
-        .map(|s| Framed::new(s, LengthDelimitedCodec::default()))
-        .map(|fs| tarpc::serde_transport::new(fs, Json::default()));
+    let listener = TcpListener::bind(server_addr).await?;
+    let (stream, client_addr) = listener.accept().await?;
+    println!("Accepted connection from {}", client_addr);
+    let framed_stream = Framed::new(stream, LengthDelimitedCodec::default());
+    let server_transport = tarpc::serde_transport::new(framed_stream, Json::default());
 
     let server = server::new(server::Config::default())
-        // incoming() takes a stream of transports such as would be returned by
-        // TcpListener::incoming (but a stream instead of an iterator).
-        .incoming(listener)
-        .respond_with(HelloServer(server_addr).serve());
+        .incoming(stream::once(future::ready(server_transport)))
+        .respond_with(HelloServer(client_addr).serve());
 
     server.await;
+    println!("server.await returned. It should only return once `stream` has been fully processed?");
 
     Ok(())
 }
